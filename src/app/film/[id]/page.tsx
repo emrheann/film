@@ -6,9 +6,10 @@ interface MoviePageProps {
   params: {
     id: string;
   };
+  searchParams: { [key: string]: string | string[] | undefined };
 }
 
-export default async function MoviePage({ params }: MoviePageProps) {
+export default async function MoviePage({ params, searchParams }: MoviePageProps) {
   const movie = await getMovieDetails(params.id);
 
   return (
