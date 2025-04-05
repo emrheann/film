@@ -3,12 +3,13 @@ import Link from "next/link";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
 
 type Props = {
-  params: { id: string }
+  params: Promise<{ id: string }>
   searchParams: { [key: string]: string | string[] | undefined }
 }
 
 export default async function MoviePage({ params }: Props) {
-  const movie = await getMovieDetails(params.id);
+  const resolvedParams = await params;
+  const movie = await getMovieDetails(resolvedParams.id);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
