@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { searchMovies } from "@/services/omdb";
+import { searchMovies, getMovieDetails, getImageUrl } from "@/services/omdb";
+import { saveUserMovie } from "@/services/db";
 import Image from "next/image";
-import { getImageUrl } from "@/services/omdb";
+import { useRouter } from "next/navigation";
 
 export default function FilmEklePage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedMovie, setSelectedMovie] = useState<any>(null);
@@ -14,6 +16,7 @@ export default function FilmEklePage() {
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,36 +24,69 @@ export default function FilmEklePage() {
 
     setIsLoading(true);
     setError("");
+    setSearchResults([]);
+    setSelectedMovie(null);
+    
     try {
       const results = await searchMovies(searchQuery);
       setSearchResults(results);
     } catch (err) {
+      console.error("Film arama hatası:", err);
       setError("Film arama sırasında bir hata oluştu. Lütfen tekrar deneyin.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleMovieSelect = (movie: any) => {
-    setSelectedMovie(movie);
-    setSearchResults([]);
+  const handleMovieSelect = async (movie: any) => {
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      // Film detaylarını al
+      const details = await getMovieDetails(movie.imdbID);
+      setSelectedMovie(details);
+      setSearchResults([]);
+    } catch (err) {
+      console.error("Film detayları alma hatası:", err);
+      setError("Film detayları alınırken bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMovie) return;
 
-    // Burada film kaydetme işlemi yapılacak
-    // Şimdilik sadece console'a yazdıralım
-    console.log({
-      movie: selectedMovie,
-      rating,
-      notes,
-      dateAdded: new Date().toISOString(),
-    });
-
-    // Başarılı kayıt sonrası ana sayfaya yönlendir
-    window.location.href = "/";
+    setIsLoading(true);
+    setError("");
+    setSuccessMessage("");
+    
+    try {
+      // Film bilgilerini hazırla
+      const movieToSave = {
+        ...selectedMovie,
+        userRating: rating,
+        userNotes: notes,
+        dateAdded: new Date().toISOString().split('T')[0], // YYYY-MM-DD formatında
+      };
+      
+      // Veritabanına kaydet
+      saveUserMovie(movieToSave);
+      
+      setSuccessMessage("Film başarıyla eklendi!");
+      
+      // 2 saniye sonra ana sayfaya yönlendir
+      setTimeout(() => {
+        router.push('/');
+      }, 2000);
+    } catch (err) {
+      console.error("Film kaydetme hatası:", err);
+      setError("Film kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -117,6 +153,19 @@ export default function FilmEklePage() {
             {error && (
               <div className="mt-4 p-4 bg-red-900 text-white rounded-lg">
                 {error}
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="mt-4 p-4 bg-green-900 text-white rounded-lg">
+                {successMessage}
+              </div>
+            )}
+
+            {isLoading && (
+              <div className="mt-6 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
+                <p className="mt-4 text-gray-400">Yükleniyor...</p>
               </div>
             )}
 
@@ -214,9 +263,10 @@ export default function FilmEklePage() {
                   </Link>
                   <button
                     type="submit"
-                    className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+                    disabled={isLoading}
+                    className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors disabled:opacity-50"
                   >
-                    Kaydet
+                    {isLoading ? "Kaydediliyor..." : "Kaydet"}
                   </button>
                 </div>
               </form>

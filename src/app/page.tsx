@@ -1,48 +1,55 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
-
-// Örnek film listesi (daha sonra veritabanından gelecek)
-const myMovies = [
-  { imdbID: "tt0816692", title: "Yıldızlararası", rating: 9.5, dateAdded: "2024-04-05", notes: "En sevdiğim bilim kurgu filmi" },
-  { imdbID: "tt1375666", title: "Başlangıç", rating: 9.2, dateAdded: "2024-04-04", notes: "Zihin bükücü bir film" },
-  { imdbID: "tt0111161", title: "Esaretin Bedeli", rating: 9.8, dateAdded: "2024-04-03", notes: "Tüm zamanların en iyi filmi" },
-];
+import { getUserMovies, sortUserMovies, filterUserMovies, searchUserMovies, UserMovie } from "@/services/db";
 
 type ViewMode = "list" | "grid" | "compact";
 type SortOption = "date" | "rating" | "title";
 type FilterOption = "all" | "high-rated" | "recent";
 
 export default function Home() {
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortBy, setSortBy] = useState<SortOption>("date");
   const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [movies, setMovies] = useState<any[]>([]);
+  const [movies, setMovies] = useState<UserMovie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Film detaylarını al
-  useState(() => {
+  useEffect(() => {
     const fetchMovies = async () => {
       setIsLoading(true);
+      setError("");
+      
       try {
-        const movieDetails = await Promise.all(
-          myMovies.map(async (movie) => {
-            const details = await getMovieDetails(movie.imdbID);
-            return {
-              ...details,
-              myRating: movie.rating,
-              dateAdded: movie.dateAdded,
-              myNotes: movie.notes,
-            };
+        // Kullanıcının film listesini al
+        const userMovies = getUserMovies();
+        
+        // Her film için detayları al
+        const moviesWithDetails = await Promise.all(
+          userMovies.map(async (movie) => {
+            try {
+              const details = await getMovieDetails(movie.imdbID);
+              return {
+                ...details,
+                userRating: movie.userRating,
+                userNotes: movie.userNotes,
+                dateAdded: movie.dateAdded,
+              };
+            } catch (err) {
+              console.error(`Film detayları alınamadı (${movie.imdbID}):`, err);
+              return movie;
+            }
           })
         );
-        setMovies(movieDetails);
-      } catch (error) {
-        console.error("Film detayları alınırken hata oluştu:", error);
+        
+        setMovies(moviesWithDetails);
+      } catch (err) {
+        console.error("Film listesi alma hatası:", err);
+        setError("Film listesi alınırken bir hata oluştu. Lütfen tekrar deneyin.");
       } finally {
         setIsLoading(false);
       }
@@ -51,49 +58,11 @@ export default function Home() {
     fetchMovies();
   }, []);
 
-  // Sıralama fonksiyonu
-  const sortMovies = (movies: any[]) => {
-    return [...movies].sort((a, b) => {
-      switch (sortBy) {
-        case "date":
-          return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
-        case "rating":
-          return b.myRating - a.myRating;
-        case "title":
-          return a.Title.localeCompare(b.Title);
-        default:
-          return 0;
-      }
-    });
-  };
-
-  // Filtreleme fonksiyonu
-  const filterMovies = (movies: any[]) => {
-    return movies.filter((movie) => {
-      if (filterBy === "high-rated") return movie.myRating >= 8;
-      if (filterBy === "recent") {
-        const date = new Date(movie.dateAdded);
-        const now = new Date();
-        const diffDays = Math.ceil((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays <= 7;
-      }
-      return true;
-    });
-  };
-
-  // Arama fonksiyonu
-  const searchMovies = (movies: any[]) => {
-    if (!searchQuery) return movies;
-    const query = searchQuery.toLowerCase();
-    return movies.filter(
-      (movie) =>
-        movie.Title.toLowerCase().includes(query) ||
-        movie.myNotes?.toLowerCase().includes(query)
-    );
-  };
-
-  // İşlenmiş film listesi
-  const processedMovies = searchMovies(filterMovies(sortMovies(movies)));
+  // Filmleri işle
+  const processedMovies = movies
+    .filter((movie) => searchUserMovies(movie, searchQuery))
+    .filter((movie) => filterUserMovies(movie, filterBy))
+    .sort((a, b) => sortUserMovies(a, b, sortBy));
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -109,9 +78,9 @@ export default function Home() {
               <div className="relative">
                 <input
                   type="text"
+                  placeholder="Film ara..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Film ara..."
                   className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 w-64"
                 />
                 <button className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white">
@@ -126,150 +95,159 @@ export default function Home() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {/* Film Listesi */}
-        <section>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">İzlediğim Filmler</h2>
-            <div className="flex space-x-4">
-              {/* Görüntüleme Modu */}
-              <div className="flex items-center space-x-2 bg-gray-700 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === "list" ? "bg-gray-600" : "hover:bg-gray-600"
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewMode("grid")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === "grid" ? "bg-gray-600" : "hover:bg-gray-600"
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewMode("compact")}
-                  className={`p-2 rounded-lg transition-colors ${
-                    viewMode === "compact" ? "bg-gray-600" : "hover:bg-gray-600"
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Sıralama */}
-              <div className="relative">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none pr-8"
-                >
-                  <option value="date">Eklenme Tarihi</option>
-                  <option value="rating">Puan</option>
-                  <option value="title">Başlık</option>
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Filtreleme */}
-              <div className="relative">
-                <select
-                  value={filterBy}
-                  onChange={(e) => setFilterBy(e.target.value as FilterOption)}
-                  className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 appearance-none pr-8"
-                >
-                  <option value="all">Tümü</option>
-                  <option value="high-rated">Yüksek Puanlı</option>
-                  <option value="recent">Son Eklenenler</option>
-                </select>
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                </div>
-              </div>
+        {/* Kontroller */}
+        <div className="mb-8 flex flex-wrap gap-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-400">Görünüm:</span>
+            <div className="flex rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`px-4 py-2 ${
+                  viewMode === "list"
+                    ? "bg-yellow-500 text-black"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                Liste
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`px-4 py-2 ${
+                  viewMode === "grid"
+                    ? "bg-yellow-500 text-black"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                Izgara
+              </button>
+              <button
+                onClick={() => setViewMode("compact")}
+                className={`px-4 py-2 ${
+                  viewMode === "compact"
+                    ? "bg-yellow-500 text-black"
+                    : "bg-gray-700 text-white hover:bg-gray-600"
+                }`}
+              >
+                Kompakt
+              </button>
             </div>
           </div>
-          
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
-              <p className="mt-4 text-gray-400">Filmler yükleniyor...</p>
-            </div>
-          ) : processedMovies.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-400">Henüz film eklenmemiş.</p>
-              <Link href="/film-ekle" className="inline-block mt-4 bg-yellow-500 text-black px-6 py-2 rounded-lg hover:bg-yellow-600 transition-colors">
-                Film Ekle
-              </Link>
-            </div>
-          ) : (
-            <div className={`space-y-4 ${
-              viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : ""
-            }`}>
-              {processedMovies.map((movie) => (
-                <Link href={`/film/${movie.imdbID}`} key={movie.imdbID}>
-                  <div className={`bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:bg-gray-700 transition-colors ${
-                    viewMode === "compact" ? "flex items-center" : ""
-                  }`}>
-                    <div className={`relative ${
-                      viewMode === "compact" ? "h-24 w-16" : "h-48 md:h-32 md:w-24"
-                    }`}>
-                      <Image
-                        src={getImageUrl(movie.Poster)}
-                        alt={movie.Title}
-                        fill
-                        className="object-cover"
-                      />
+
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-400">Sırala:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="date">Eklenme Tarihi</option>
+              <option value="rating">Puan</option>
+              <option value="title">Başlık</option>
+            </select>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-400">Filtrele:</span>
+            <select
+              value={filterBy}
+              onChange={(e) => setFilterBy(e.target.value as FilterOption)}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="all">Tümü</option>
+              <option value="high-rated">Yüksek Puanlı</option>
+              <option value="recent">Son Eklenenler</option>
+            </select>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
+            <p className="mt-4 text-gray-400">Yükleniyor...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center">
+            <p className="text-red-500">{error}</p>
+          </div>
+        ) : processedMovies.length === 0 ? (
+          <div className="text-center">
+            <p className="text-gray-400">Henüz film eklenmemiş.</p>
+            <Link
+              href="/film-ekle"
+              className="mt-4 inline-block bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+            >
+              Film Ekle
+            </Link>
+          </div>
+        ) : (
+          <div
+            className={`grid gap-6 ${
+              viewMode === "list"
+                ? "grid-cols-1"
+                : viewMode === "grid"
+                ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+                : "grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
+            }`}
+          >
+            {processedMovies.map((movie) => (
+              <Link
+                key={movie.imdbID}
+                href={`/film/${movie.imdbID}`}
+                className={`bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow ${
+                  viewMode === "list" ? "flex" : ""
+                }`}
+              >
+                <div
+                  className={`relative ${
+                    viewMode === "list"
+                      ? "w-48 h-72"
+                      : viewMode === "grid"
+                      ? "aspect-[2/3]"
+                      : "aspect-[2/3]"
+                  }`}
+                >
+                  <Image
+                    src={getImageUrl(movie.Poster)}
+                    alt={movie.Title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="font-bold text-lg">{movie.Title}</h2>
+                      <p className="text-gray-400">{movie.Year}</p>
                     </div>
-                    <div className={`p-4 ${viewMode === "compact" ? "flex-1" : ""}`}>
-                      <div className={`flex ${
-                        viewMode === "compact" ? "items-center justify-between" : "flex-col md:flex-row md:items-center md:justify-between"
-                      }`}>
-                        <h3 className={`font-semibold ${
-                          viewMode === "compact" ? "text-lg" : "text-xl"
-                        }`}>{movie.Title}</h3>
-                        <div className={`flex items-center space-x-4 ${
-                          viewMode === "compact" ? "ml-4" : "mt-2 md:mt-0"
-                        }`}>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-yellow-500 font-bold">IMDB: {movie.imdbRating}</span>
-                            <span className="text-green-500 font-bold">Benim: {movie.myRating}</span>
-                          </div>
-                          <span className="text-gray-400 text-sm">{movie.dateAdded}</span>
-                        </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="text-center">
+                        <div className="text-yellow-500 font-bold text-sm">IMDB</div>
+                        <div className="font-bold">{movie.imdbRating}</div>
                       </div>
-                      {viewMode !== "compact" && (
-                        <>
-                          <div className="mt-2 text-gray-300 text-sm">
-                            {movie.Year} • {movie.Runtime} • {movie.Genre}
-                          </div>
-                          {movie.myNotes && (
-                            <div className="mt-2 text-gray-400 text-sm italic">
-                              "{movie.myNotes}"
-                            </div>
-                          )}
-                        </>
-                      )}
+                      <div className="text-center">
+                        <div className="text-green-500 font-bold text-sm">Benim</div>
+                        <div className="font-bold">{movie.userRating.toFixed(1)}</div>
+                      </div>
                     </div>
                   </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
+                  {viewMode !== "compact" && (
+                    <>
+                      <div className="mt-2 text-sm text-gray-400">
+                        {movie.Runtime} • {movie.Genre}
+                      </div>
+                      {viewMode === "list" && (
+                        <p className="mt-2 text-gray-300 line-clamp-2">{movie.Plot}</p>
+                      )}
+                      <div className="mt-2 text-sm text-gray-400">
+                        Eklenme: {movie.dateAdded}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
 
       {/* Footer */}

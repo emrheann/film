@@ -4,33 +4,56 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
+import { getUserMovie, saveUserMovie, deleteUserMovie } from "@/services/db";
+import { useRouter } from "next/navigation";
 
-type Props = {
-  params: { id: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-};
+interface Props {
+  params: {
+    id: string;
+  };
+}
 
 export default function MoviePage({ params }: Props) {
+  const router = useRouter();
   const [movie, setMovie] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);
-  const [userRating, setUserRating] = useState(0);
+  const [userRating, setUserRating] = useState(5);
   const [userNotes, setUserNotes] = useState("");
   const [dateAdded, setDateAdded] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchMovie = async () => {
       setIsLoading(true);
+      setError("");
+      
       try {
-        const movieData = await getMovieDetails(params.id);
-        setMovie(movieData);
-        // Örnek kullanıcı verileri (daha sonra veritabanından gelecek)
-        setUserRating(9.5);
-        setUserNotes("En sevdiğim bilim kurgu filmi. Görsel efektler ve müzikler muhteşem.");
-        setDateAdded("2024-04-05");
+        // Önce kullanıcının kaydettiği film bilgilerini al
+        const userMovie = getUserMovie(params.id);
+        
+        if (userMovie) {
+          // Kullanıcının kaydettiği film varsa, detayları güncelle
+          const details = await getMovieDetails(params.id);
+          setMovie({
+            ...details,
+            userRating: userMovie.userRating,
+            userNotes: userMovie.userNotes,
+            dateAdded: userMovie.dateAdded,
+          });
+          setUserRating(userMovie.userRating);
+          setUserNotes(userMovie.userNotes);
+          setDateAdded(userMovie.dateAdded);
+        } else {
+          // Kullanıcının kaydettiği film yoksa, sadece detayları al
+          const details = await getMovieDetails(params.id);
+          setMovie(details);
+        }
       } catch (err) {
-        setError("Film detayları alınırken bir hata oluştu.");
+        console.error("Film detayları alma hatası:", err);
+        setError("Film detayları alınırken bir hata oluştu. Lütfen tekrar deneyin.");
       } finally {
         setIsLoading(false);
       }
@@ -39,16 +62,65 @@ export default function MoviePage({ params }: Props) {
     fetchMovie();
   }, [params.id]);
 
-  const handleSave = () => {
-    // Burada düzenleme kaydetme işlemi yapılacak
-    // Şimdilik sadece console'a yazdıralım
-    console.log({
-      movieId: params.id,
-      userRating,
-      userNotes,
-      dateAdded,
-    });
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (!movie) return;
+
+    setIsLoading(true);
+    setError("");
+    setSuccessMessage("");
+    
+    try {
+      // Film bilgilerini hazırla
+      const movieToSave = {
+        ...movie,
+        userRating,
+        userNotes,
+        dateAdded: dateAdded || new Date().toISOString().split('T')[0],
+      };
+      
+      // Veritabanına kaydet
+      saveUserMovie(movieToSave);
+      
+      setSuccessMessage("Film başarıyla güncellendi!");
+      setIsEditing(false);
+      
+      // 2 saniye sonra mesajı temizle
+      setTimeout(() => {
+        setSuccessMessage("");
+      }, 2000);
+    } catch (err) {
+      console.error("Film güncelleme hatası:", err);
+      setError("Film güncellenirken bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!movie) return;
+
+    setIsDeleting(true);
+    setError("");
+    
+    try {
+      // Film bilgilerini hazırla
+      const movieToDelete = {
+        ...movie,
+        userRating,
+        userNotes,
+        dateAdded,
+      };
+      
+      // Veritabanından sil
+      deleteUserMovie(movieToDelete.imdbID);
+      
+      // Ana sayfaya yönlendir
+      router.push('/');
+    } catch (err) {
+      console.error("Film silme hatası:", err);
+      setError("Film silinirken bir hata oluştu. Lütfen tekrar deneyin.");
+      setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -56,17 +128,30 @@ export default function MoviePage({ params }: Props) {
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
-          <p className="mt-4 text-gray-400">Film yükleniyor...</p>
+          <p className="mt-4 text-gray-400">Yükleniyor...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !movie) {
+  if (error) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500">{error || "Film bulunamadı."}</p>
+          <p className="text-red-500">{error}</p>
+          <Link href="/" className="mt-4 inline-block text-yellow-500 hover:text-yellow-400">
+            Ana Sayfaya Dön
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!movie) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-400">Film bulunamadı.</p>
           <Link href="/" className="mt-4 inline-block text-yellow-500 hover:text-yellow-400">
             Ana Sayfaya Dön
           </Link>
@@ -105,43 +190,68 @@ export default function MoviePage({ params }: Props) {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg">
-            <div className="flex flex-col md:flex-row">
-              <div className="relative h-96 md:h-auto md:w-1/3">
-                <Image
-                  src={getImageUrl(movie.Poster)}
-                  alt={movie.Title}
-                  fill
-                  className="object-cover"
-                />
+          {successMessage && (
+            <div className="mb-6 p-4 bg-green-900 text-white rounded-lg">
+              {successMessage}
+            </div>
+          )}
+          
+          <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-full md:w-1/3">
+                <div className="relative aspect-[2/3]">
+                  <Image
+                    src={getImageUrl(movie.Poster)}
+                    alt={movie.Title}
+                    fill
+                    className="object-cover rounded-lg"
+                  />
+                </div>
               </div>
-              <div className="p-6 md:w-2/3">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between">
+              
+              <div className="w-full md:w-2/3">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h1 className="text-3xl font-bold mb-2">{movie.Title}</h1>
-                    <p className="text-gray-400 mb-4">{movie.Year} • {movie.Runtime} • {movie.Genre}</p>
+                    <h1 className="text-3xl font-bold">{movie.Title}</h1>
+                    <p className="text-gray-400">{movie.Year}</p>
                   </div>
-                  <div className="flex items-center space-x-4 mt-4 md:mt-0">
-                    <div className="text-center">
-                      <div className="text-yellow-500 font-bold text-xl">IMDB</div>
-                      <div className="text-2xl font-bold">{movie.imdbRating}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-green-500 font-bold text-xl">Benim</div>
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          step="0.1"
-                          value={userRating}
-                          onChange={(e) => setUserRating(parseFloat(e.target.value))}
-                          className="w-16 text-2xl font-bold bg-gray-700 text-center rounded"
-                        />
-                      ) : (
-                        <div className="text-2xl font-bold">{userRating}</div>
-                      )}
-                    </div>
+                  <div className="flex space-x-2">
+                    {!isEditing && (
+                      <>
+                        <button
+                          onClick={() => setIsEditing(true)}
+                          className="bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
+                        >
+                          Düzenle
+                        </button>
+                        <button
+                          onClick={handleDelete}
+                          disabled={isDeleting}
+                          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                          {isDeleting ? "Siliniyor..." : "Sil"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-gray-400">Süre</p>
+                    <p>{movie.Runtime}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Tür</p>
+                    <p>{movie.Genre}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">IMDB Puanı</p>
+                    <p>{movie.imdbRating}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Eklenme Tarihi</p>
+                    <p>{dateAdded}</p>
                   </div>
                 </div>
                 
@@ -150,49 +260,75 @@ export default function MoviePage({ params }: Props) {
                   <p className="text-gray-300">{movie.Plot}</p>
                 </div>
                 
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-xl font-bold">Notlarım</h2>
-                    {!isEditing ? (
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="text-yellow-500 hover:text-yellow-400"
-                      >
-                        Düzenle
-                      </button>
-                    ) : (
-                      <div className="space-x-2">
-                        <button
-                          onClick={() => setIsEditing(false)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          İptal
-                        </button>
-                        <button
-                          onClick={handleSave}
-                          className="text-yellow-500 hover:text-yellow-400"
-                        >
-                          Kaydet
-                        </button>
+                {isEditing ? (
+                  <div className="mt-6 space-y-4">
+                    <div>
+                      <label htmlFor="rating" className="block text-lg font-medium mb-2">
+                        Puanınız
+                      </label>
+                      <div className="flex items-center space-x-4">
+                        <input
+                          type="range"
+                          id="rating"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value={userRating}
+                          onChange={(e) => setUserRating(parseFloat(e.target.value))}
+                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <span className="text-yellow-500 font-bold w-12 text-center">{userRating.toFixed(1)}</span>
                       </div>
-                    )}
-                  </div>
-                  {isEditing ? (
-                    <textarea
-                      value={userNotes}
-                      onChange={(e) => setUserNotes(e.target.value)}
-                      rows={4}
-                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    />
-                  ) : (
-                    <div className="bg-gray-700 p-4 rounded-lg">
-                      <p className="text-gray-300 italic">"{userNotes}"</p>
-                      <p className="text-gray-400 text-sm mt-2">Eklenme: {dateAdded}</p>
                     </div>
-                  )}
-                </div>
+                    
+                    <div>
+                      <label htmlFor="notes" className="block text-lg font-medium mb-2">
+                        Notlarınız
+                      </label>
+                      <textarea
+                        id="notes"
+                        value={userNotes}
+                        onChange={(e) => setUserNotes(e.target.value)}
+                        rows={4}
+                        placeholder="Film hakkında düşüncelerinizi yazın..."
+                        className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                      ></textarea>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-4">
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className="bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                      >
+                        İptal
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={isLoading}
+                        className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors disabled:opacity-50"
+                      >
+                        {isLoading ? "Kaydediliyor..." : "Kaydet"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-6">
+                      <h2 className="text-xl font-bold mb-2">Puanınız</h2>
+                      <div className="flex items-center space-x-2">
+                        <div className="text-3xl font-bold text-yellow-500">{userRating.toFixed(1)}</div>
+                        <div className="text-gray-400">/ 10</div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6">
+                      <h2 className="text-xl font-bold mb-2">Notlarınız</h2>
+                      <p className="text-gray-300 whitespace-pre-wrap">{userNotes || "Henüz not eklenmemiş."}</p>
+                    </div>
+                  </>
+                )}
                 
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="mt-6 grid grid-cols-2 gap-4">
                   <div>
                     <h2 className="text-xl font-bold mb-2">Yönetmen</h2>
                     <p className="text-gray-300">{movie.Director}</p>
@@ -202,31 +338,8 @@ export default function MoviePage({ params }: Props) {
                     <p className="text-gray-300">{movie.Actors}</p>
                   </div>
                 </div>
-                
-                <div className="mt-6">
-                  <a
-                    href={`https://www.imdb.com/title/${movie.imdbID}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors"
-                  >
-                    <span>IMDB&apos;de Görüntüle</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                </div>
               </div>
             </div>
-          </div>
-          
-          <div className="mt-8 flex justify-between">
-            <Link
-              href="/"
-              className="bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-            >
-              Geri Dön
-            </Link>
           </div>
         </div>
       </main>
