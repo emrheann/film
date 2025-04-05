@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
 import { getUserMovie, saveUserMovie, deleteUserMovie } from "@/services/db";
 import { useRouter } from "next/navigation";
+import { Movie, UserMovie } from "@/types/movie";
 
 interface Props {
   movieId: string;
@@ -13,7 +14,7 @@ interface Props {
 
 export default function MoviePageClient({ movieId }: Props) {
   const router = useRouter();
-  const [movie, setMovie] = useState<any>(null);
+  const [movie, setMovie] = useState<Movie | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isEditing, setIsEditing] = useState(false);

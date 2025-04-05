@@ -6,12 +6,21 @@ import { searchMovies, getMovieDetails, getImageUrl } from "@/services/omdb";
 import { saveUserMovie } from "@/services/db";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { Movie, UserMovie } from "@/types/movie";
+
+interface SearchResult {
+  Title: string;
+  Year: string;
+  imdbID: string;
+  Type: string;
+  Poster: string;
+}
 
 export default function FilmEklePage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [selectedMovie, setSelectedMovie] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [rating, setRating] = useState(5);
   const [notes, setNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -38,13 +47,13 @@ export default function FilmEklePage() {
     }
   };
 
-  const handleMovieSelect = async (movie: any) => {
+  const handleMovieSelect = async (imdbId: string) => {
     setIsLoading(true);
     setError("");
     
     try {
       // Film detaylarını al
-      const details = await getMovieDetails(movie.imdbID);
+      const details = await getMovieDetails(imdbId);
       setSelectedMovie(details);
       setSearchResults([]);
     } catch (err) {
@@ -65,7 +74,7 @@ export default function FilmEklePage() {
     
     try {
       // Film bilgilerini hazırla
-      const movieToSave = {
+      const movieToSave: UserMovie = {
         ...selectedMovie,
         userRating: rating,
         userNotes: notes,
@@ -84,7 +93,6 @@ export default function FilmEklePage() {
     } catch (err) {
       console.error("Film kaydetme hatası:", err);
       setError("Film kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -176,7 +184,7 @@ export default function FilmEklePage() {
                   {searchResults.map((movie) => (
                     <div
                       key={movie.imdbID}
-                      onClick={() => handleMovieSelect(movie)}
+                      onClick={() => handleMovieSelect(movie.imdbID)}
                       className="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors"
                     >
                       <div className="relative w-16 h-24">

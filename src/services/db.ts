@@ -1,99 +1,76 @@
-import { Movie } from './omdb';
+import { Movie, UserMovie } from '@/types/movie';
 
-export interface UserMovie extends Movie {
-  userRating: number;
-  userNotes: string;
-  dateAdded: string;
-}
-
-// Veritabanı anahtarları
 const DB_KEYS = {
-  USER_MOVIES: 'user_movies',
-};
+  USER_MOVIES: 'userMovies',
+} as const;
 
-// Kullanıcının film listesini al
 export function getUserMovies(): UserMovie[] {
   if (typeof window === 'undefined') return [];
-  
-  const moviesJson = localStorage.getItem(DB_KEYS.USER_MOVIES);
-  if (!moviesJson) return [];
-  
+
   try {
-    return JSON.parse(moviesJson);
+    const movies = localStorage.getItem(DB_KEYS.USER_MOVIES);
+    return movies ? JSON.parse(movies) : [];
   } catch (err) {
-    console.error("Film listesi parse hatası:", err);
+    console.error('Film listesi alınırken hata:', err);
     return [];
   }
 }
 
-// Film ekle veya güncelle
 export function saveUserMovie(movie: UserMovie): void {
-  if (typeof window === 'undefined') return;
-  
   const movies = getUserMovies();
-  const index = movies.findIndex((m) => m.imdbID === movie.imdbID);
-  
-  if (index !== -1) {
-    // Film zaten varsa güncelle
-    movies[index] = movie;
+  const existingIndex = movies.findIndex(m => m.imdbID === movie.imdbID);
+
+  if (existingIndex >= 0) {
+    movies[existingIndex] = movie;
   } else {
-    // Yeni film ekle
     movies.push(movie);
   }
-  
+
   localStorage.setItem(DB_KEYS.USER_MOVIES, JSON.stringify(movies));
 }
 
-// Film sil
 export function deleteUserMovie(imdbId: string): void {
-  if (typeof window === 'undefined') return;
-  
   const movies = getUserMovies();
-  const filteredMovies = movies.filter((movie) => movie.imdbID !== imdbId);
-  
+  const filteredMovies = movies.filter(movie => movie.imdbID !== imdbId);
   localStorage.setItem(DB_KEYS.USER_MOVIES, JSON.stringify(filteredMovies));
 }
 
-// Belirli bir filmi getir
 export function getUserMovie(imdbId: string): UserMovie | null {
   const movies = getUserMovies();
-  return movies.find((movie) => movie.imdbID === imdbId) || null;
+  return movies.find(movie => movie.imdbID === imdbId) || null;
 }
 
-// Filmleri sırala
-export function sortUserMovies(a: UserMovie, b: UserMovie, sortBy: 'date' | 'rating' | 'title'): number {
-  switch (sortBy) {
-    case 'date':
-      return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
-    case 'rating':
-      return b.userRating - a.userRating;
-    case 'title':
-      return a.Title.localeCompare(b.Title);
-    default:
-      return 0;
-  }
+export function sortUserMovies(movies: UserMovie[], sortBy: 'date' | 'rating' | 'title'): UserMovie[] {
+  return [...movies].sort((a, b) => {
+    switch (sortBy) {
+      case 'date':
+        return new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime();
+      case 'rating':
+        return b.userRating - a.userRating;
+      case 'title':
+        return a.Title.localeCompare(b.Title);
+      default:
+        return 0;
+    }
+  });
 }
 
-// Filmleri filtrele
-export function filterUserMovies(movie: UserMovie, filterBy: 'all' | 'high-rated' | 'recent'): boolean {
+export function filterUserMovies(movies: UserMovie[], filterBy: 'all' | 'high-rated' | 'recent'): UserMovie[] {
   switch (filterBy) {
     case 'high-rated':
-      return movie.userRating >= 8;
+      return movies.filter(movie => movie.userRating >= 8);
     case 'recent':
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return new Date(movie.dateAdded) >= thirtyDaysAgo;
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      return movies.filter(movie => new Date(movie.dateAdded) >= oneMonthAgo);
     default:
-      return true;
+      return movies;
   }
 }
 
-// Filmlerde ara
-export function searchUserMovies(movie: UserMovie, query: string): boolean {
-  if (!query) return true;
-  
+export function searchUserMovies(movies: UserMovie[], query: string): UserMovie[] {
   const searchTerm = query.toLowerCase();
-  return (
+  return movies.filter(movie => 
     movie.Title.toLowerCase().includes(searchTerm) ||
     movie.userNotes.toLowerCase().includes(searchTerm)
   );
