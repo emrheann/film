@@ -11,21 +11,26 @@ export default async function MoviePage({ params }: Props) {
   const resolvedParams = await params;
   const movie = await getMovieDetails(resolvedParams.id);
 
+  // Örnek kullanıcı değerlendirmesi (daha sonra veritabanından gelecek)
+  const userRating = 9.0;
+  const userNotes = "Harika bir film! Özellikle görsel efektler ve müzikler etkileyici.";
+  const dateAdded = "2024-04-05";
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
       <header className="bg-gray-800 shadow-lg">
         <nav className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold text-yellow-500">Sinefil</Link>
+            <Link href="/" className="text-2xl font-bold text-yellow-500">Film Listem</Link>
             <div className="flex items-center space-x-6">
-              <Link href="/filmler" className="hover:text-yellow-500">Filmler</Link>
-              <Link href="/diziler" className="hover:text-yellow-500">Diziler</Link>
-              <Link href="/en-iyiler" className="hover:text-yellow-500">En İyiler</Link>
+              <Link href="/film-ekle" className="bg-yellow-500 text-black px-4 py-2 rounded-lg hover:bg-yellow-600">
+                Film Ekle
+              </Link>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Film veya dizi ara..."
+                  placeholder="Film ara..."
                   className="bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 />
               </div>
@@ -54,15 +59,24 @@ export default async function MoviePage({ params }: Props) {
             
             <div className="flex items-center space-x-4 mb-6">
               <span className="bg-yellow-500 text-black px-3 py-1 rounded-full font-bold">
-                {movie.imdbRating || 'N/A'}
+                IMDB: {movie.imdbRating || 'N/A'}
+              </span>
+              <span className="bg-green-500 text-black px-3 py-1 rounded-full font-bold">
+                Benim: {userRating}
               </span>
               <span className="text-gray-300">{movie.Year}</span>
               <span className="text-gray-300">{movie.Runtime}</span>
+              <span className="text-gray-300">Eklenme: {dateAdded}</span>
             </div>
 
             <div className="mb-6">
               <h2 className="text-xl font-semibold mb-2">Özet</h2>
               <p className="text-gray-300">{movie.Plot || 'Özet bulunamadı.'}</p>
+            </div>
+
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2">Notlarım</h2>
+              <p className="text-gray-300">{userNotes}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -107,27 +121,9 @@ export default async function MoviePage({ params }: Props) {
       {/* Footer */}
       <footer className="bg-gray-800 mt-12">
         <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div>
-              <h3 className="text-xl font-bold text-yellow-500 mb-4">Sinefil</h3>
-              <p className="text-gray-400">En iyi film ve dizileri keşfedin.</p>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold mb-4">Hızlı Bağlantılar</h4>
-              <ul className="space-y-2">
-                <li><Link href="/hakkimizda" className="text-gray-400 hover:text-yellow-500">Hakkımızda</Link></li>
-                <li><Link href="/iletisim" className="text-gray-400 hover:text-yellow-500">İletişim</Link></li>
-                <li><Link href="/gizlilik" className="text-gray-400 hover:text-yellow-500">Gizlilik Politikası</Link></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-lg font-semibold mb-4">Bizi Takip Edin</h4>
-              <div className="flex space-x-4">
-                <a href="#" className="text-gray-400 hover:text-yellow-500">Twitter</a>
-                <a href="#" className="text-gray-400 hover:text-yellow-500">Instagram</a>
-                <a href="#" className="text-gray-400 hover:text-yellow-500">Facebook</a>
-              </div>
-            </div>
+          <div className="text-center">
+            <h3 className="text-xl font-bold text-yellow-500 mb-4">Film Listem</h3>
+            <p className="text-gray-400">İzlediğiniz filmleri kaydedin ve değerlendirin.</p>
           </div>
         </div>
       </footer>
