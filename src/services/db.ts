@@ -1,4 +1,4 @@
-import { Movie, UserMovie } from '@/types/movie';
+import { UserMovie } from '@/types/movie';
 
 const DB_KEYS = {
   USER_MOVIES: 'userMovies',

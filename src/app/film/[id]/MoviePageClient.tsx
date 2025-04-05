@@ -6,7 +6,7 @@ import Link from "next/link";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
 import { getUserMovie, saveUserMovie, deleteUserMovie } from "@/services/db";
 import { useRouter } from "next/navigation";
-import { Movie, UserMovie } from "@/types/movie";
+import { Movie } from "@/types/movie";
 
 interface Props {
   movieId: string;
