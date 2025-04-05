@@ -48,27 +48,45 @@ export default async function Home() {
       <main className="container mx-auto px-4 py-8">
         {/* Film Listesi */}
         <section>
-          <h2 className="text-2xl font-bold mb-6">İzlediğim Filmler</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">İzlediğim Filmler</h2>
+            <div className="flex space-x-2">
+              <button className="bg-gray-700 text-white px-3 py-1 rounded-lg hover:bg-gray-600">
+                Sırala
+              </button>
+              <button className="bg-gray-700 text-white px-3 py-1 rounded-lg hover:bg-gray-600">
+                Filtrele
+              </button>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
             {movies.map((movie) => (
               <Link href={`/film/${movie.imdbID}`} key={movie.imdbID}>
-                <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:scale-105 transition-transform">
-                  <div className="relative h-64">
-                    <Image
-                      src={getImageUrl(movie.Poster)}
-                      alt={movie.Title}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold mb-2">{movie.Title}</h3>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-yellow-500 font-bold">IMDB: {movie.imdbRating}</span>
-                        <span className="text-green-500 font-bold">Benim: {movie.myRating}</span>
+                <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:bg-gray-700 transition-colors">
+                  <div className="flex flex-col md:flex-row">
+                    <div className="relative h-48 md:h-32 md:w-24">
+                      <Image
+                        src={getImageUrl(movie.Poster)}
+                        alt={movie.Title}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="p-4 flex-1">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                        <h3 className="text-lg font-semibold mb-2 md:mb-0">{movie.Title}</h3>
+                        <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-yellow-500 font-bold">IMDB: {movie.imdbRating}</span>
+                            <span className="text-green-500 font-bold">Benim: {movie.myRating}</span>
+                          </div>
+                          <span className="text-gray-400 text-sm">{movie.dateAdded}</span>
+                        </div>
                       </div>
-                      <span className="text-gray-400 text-sm">{movie.dateAdded}</span>
+                      <div className="mt-2 text-gray-300 text-sm">
+                        {movie.Year} • {movie.Runtime} • {movie.Genre}
+                      </div>
                     </div>
                   </div>
                 </div>
