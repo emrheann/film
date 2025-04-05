@@ -1,20 +1,79 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { getMovieDetails, getImageUrl } from "@/services/omdb";
 
 type Props = {
-  params: Promise<{ id: string }>;
+  params: { id: string };
   searchParams: { [key: string]: string | string[] | undefined };
 };
 
-export default async function MoviePage({ params }: Props) {
-  const { id } = await params;
-  const movie = await getMovieDetails(id);
+export default function MoviePage({ params }: Props) {
+  const [movie, setMovie] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [userNotes, setUserNotes] = useState("");
+  const [dateAdded, setDateAdded] = useState("");
 
-  // Örnek kullanıcı değerlendirmesi (daha sonra veritabanından gelecek)
-  const userRating = 9.5;
-  const userNotes = "En sevdiğim bilim kurgu filmi. Görsel efektler ve müzikler muhteşem.";
-  const dateAdded = "2024-04-05";
+  useEffect(() => {
+    const fetchMovie = async () => {
+      setIsLoading(true);
+      try {
+        const movieData = await getMovieDetails(params.id);
+        setMovie(movieData);
+        // Örnek kullanıcı verileri (daha sonra veritabanından gelecek)
+        setUserRating(9.5);
+        setUserNotes("En sevdiğim bilim kurgu filmi. Görsel efektler ve müzikler muhteşem.");
+        setDateAdded("2024-04-05");
+      } catch (err) {
+        setError("Film detayları alınırken bir hata oluştu.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMovie();
+  }, [params.id]);
+
+  const handleSave = () => {
+    // Burada düzenleme kaydetme işlemi yapılacak
+    // Şimdilik sadece console'a yazdıralım
+    console.log({
+      movieId: params.id,
+      userRating,
+      userNotes,
+      dateAdded,
+    });
+    setIsEditing(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
+          <p className="mt-4 text-gray-400">Film yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !movie) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500">{error || "Film bulunamadı."}</p>
+          <Link href="/" className="mt-4 inline-block text-yellow-500 hover:text-yellow-400">
+            Ana Sayfaya Dön
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -69,7 +128,19 @@ export default async function MoviePage({ params }: Props) {
                     </div>
                     <div className="text-center">
                       <div className="text-green-500 font-bold text-xl">Benim</div>
-                      <div className="text-2xl font-bold">{userRating}</div>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          step="0.1"
+                          value={userRating}
+                          onChange={(e) => setUserRating(parseFloat(e.target.value))}
+                          className="w-16 text-2xl font-bold bg-gray-700 text-center rounded"
+                        />
+                      ) : (
+                        <div className="text-2xl font-bold">{userRating}</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -80,11 +151,45 @@ export default async function MoviePage({ params }: Props) {
                 </div>
                 
                 <div className="mt-6">
-                  <h2 className="text-xl font-bold mb-2">Notlarım</h2>
-                  <div className="bg-gray-700 p-4 rounded-lg">
-                    <p className="text-gray-300 italic">"{userNotes}"</p>
-                    <p className="text-gray-400 text-sm mt-2">Eklenme: {dateAdded}</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-xl font-bold">Notlarım</h2>
+                    {!isEditing ? (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="text-yellow-500 hover:text-yellow-400"
+                      >
+                        Düzenle
+                      </button>
+                    ) : (
+                      <div className="space-x-2">
+                        <button
+                          onClick={() => setIsEditing(false)}
+                          className="text-gray-400 hover:text-white"
+                        >
+                          İptal
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          className="text-yellow-500 hover:text-yellow-400"
+                        >
+                          Kaydet
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  {isEditing ? (
+                    <textarea
+                      value={userNotes}
+                      onChange={(e) => setUserNotes(e.target.value)}
+                      rows={4}
+                      className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    />
+                  ) : (
+                    <div className="bg-gray-700 p-4 rounded-lg">
+                      <p className="text-gray-300 italic">"{userNotes}"</p>
+                      <p className="text-gray-400 text-sm mt-2">Eklenme: {dateAdded}</p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -122,11 +227,6 @@ export default async function MoviePage({ params }: Props) {
             >
               Geri Dön
             </Link>
-            <button
-              className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
-            >
-              Düzenle
-            </button>
           </div>
         </div>
       </main>

@@ -1,7 +1,58 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { searchMovies } from "@/services/omdb";
+import Image from "next/image";
+import { getImageUrl } from "@/services/omdb";
 
 export default function FilmEklePage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedMovie, setSelectedMovie] = useState<any>(null);
+  const [rating, setRating] = useState(5);
+  const [notes, setNotes] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsLoading(true);
+    setError("");
+    try {
+      const results = await searchMovies(searchQuery);
+      setSearchResults(results);
+    } catch (err) {
+      setError("Film arama sırasında bir hata oluştu. Lütfen tekrar deneyin.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMovieSelect = (movie: any) => {
+    setSelectedMovie(movie);
+    setSearchResults([]);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMovie) return;
+
+    // Burada film kaydetme işlemi yapılacak
+    // Şimdilik sadece console'a yazdıralım
+    console.log({
+      movie: selectedMovie,
+      rating,
+      notes,
+      dateAdded: new Date().toISOString(),
+    });
+
+    // Başarılı kayıt sonrası ana sayfaya yönlendir
+    window.location.href = "/";
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
@@ -35,7 +86,7 @@ export default function FilmEklePage() {
           <h1 className="text-3xl font-bold mb-8">Film Ekle</h1>
           
           <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
-            <form className="space-y-6">
+            <form onSubmit={handleSearch} className="space-y-6">
               <div>
                 <label htmlFor="search" className="block text-lg font-medium mb-2">
                   Film Ara
@@ -44,71 +95,132 @@ export default function FilmEklePage() {
                   <input
                     type="text"
                     id="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Film adı girin..."
                     className="flex-1 bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                   />
                   <button
                     type="submit"
-                    className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+                    disabled={isLoading}
+                    className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors disabled:opacity-50"
                   >
-                    Ara
+                    {isLoading ? "Aranıyor..." : "Ara"}
                   </button>
                 </div>
                 <p className="mt-2 text-sm text-gray-400">
                   IMDB veritabanında arama yaparak film ekleyebilirsiniz.
                 </p>
               </div>
-              
-              <div>
-                <label htmlFor="rating" className="block text-lg font-medium mb-2">
-                  Puanınız
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="range"
-                    id="rating"
-                    min="0"
-                    max="10"
-                    step="0.1"
-                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <span id="ratingValue" className="text-yellow-500 font-bold">5.0</span>
-                </div>
-                <p className="mt-2 text-sm text-gray-400">
-                  0-10 arası bir puan verin
-                </p>
-              </div>
-              
-              <div>
-                <label htmlFor="notes" className="block text-lg font-medium mb-2">
-                  Notlarınız
-                </label>
-                <textarea
-                  id="notes"
-                  rows={4}
-                  placeholder="Film hakkında düşüncelerinizi yazın..."
-                  className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                ></textarea>
-                <p className="mt-2 text-sm text-gray-400">
-                  Film hakkında kısa notlar alabilirsiniz.
-                </p>
-              </div>
-              
-              <div className="flex justify-end space-x-4">
-                <Link
-                  href="/"
-                  className="bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                >
-                  İptal
-                </Link>
-                <button
-                  type="submit"
-                  className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
-                >
-                  Kaydet
-                </button>
-              </div>
             </form>
+
+            {error && (
+              <div className="mt-4 p-4 bg-red-900 text-white rounded-lg">
+                {error}
+              </div>
+            )}
+
+            {searchResults.length > 0 && !selectedMovie && (
+              <div className="mt-6">
+                <h2 className="text-xl font-bold mb-4">Arama Sonuçları</h2>
+                <div className="space-y-4">
+                  {searchResults.map((movie) => (
+                    <div
+                      key={movie.imdbID}
+                      onClick={() => handleMovieSelect(movie)}
+                      className="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition-colors"
+                    >
+                      <div className="relative w-16 h-24">
+                        <Image
+                          src={getImageUrl(movie.Poster)}
+                          alt={movie.Title}
+                          fill
+                          className="object-cover rounded"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{movie.Title}</h3>
+                        <p className="text-gray-400">{movie.Year}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedMovie && (
+              <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+                <div className="flex items-center space-x-4 p-4 bg-gray-700 rounded-lg">
+                  <div className="relative w-24 h-36">
+                    <Image
+                      src={getImageUrl(selectedMovie.Poster)}
+                      alt={selectedMovie.Title}
+                      fill
+                      className="object-cover rounded"
+                    />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">{selectedMovie.Title}</h3>
+                    <p className="text-gray-400">{selectedMovie.Year}</p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMovie(null)}
+                      className="mt-2 text-sm text-red-400 hover:text-red-300"
+                    >
+                      Seçimi İptal Et
+                    </button>
+                  </div>
+                </div>
+              
+                <div>
+                  <label htmlFor="rating" className="block text-lg font-medium mb-2">
+                    Puanınız
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="range"
+                      id="rating"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={rating}
+                      onChange={(e) => setRating(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="text-yellow-500 font-bold w-12 text-center">{rating.toFixed(1)}</span>
+                  </div>
+                </div>
+              
+                <div>
+                  <label htmlFor="notes" className="block text-lg font-medium mb-2">
+                    Notlarınız
+                  </label>
+                  <textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={4}
+                    placeholder="Film hakkında düşüncelerinizi yazın..."
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  ></textarea>
+                </div>
+              
+                <div className="flex justify-end space-x-4">
+                  <Link
+                    href="/"
+                    className="bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                  >
+                    İptal
+                  </Link>
+                  <button
+                    type="submit"
+                    className="bg-yellow-500 text-black px-6 py-2 rounded-lg font-semibold hover:bg-yellow-600 transition-colors"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
           
           <div className="mt-8 bg-gray-800 rounded-lg p-6 shadow-lg">
